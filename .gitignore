@@ -1,0 +1,6 @@
+# Ignore runtime data
+__pycache__/
+
+# Don't upload sensitive info
+data/
+
