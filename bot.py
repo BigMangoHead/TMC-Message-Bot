@@ -9,21 +9,42 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# Parse guilds
+guildids = []
+try: 
+    with open("data/guilds") as file:
+        guildids = file.read().split("\n")
+except Exception as e:
+    print("Problem reading \"data/guilds\" file.")
+    print("Proceeding without syncronizing any guilds on load. This means that commands may not load for some time.")
+
+guilds =[]
+for guild in guildids:
+    try:
+        guilds.append(discord.Object(id=int(guild)))
+    except:
+        continue
+
+# Events once loaded
 @bot.event
 async def on_ready():
     try: 
-        guild = discord.Object(id=1170796078598193295)
-        synced = await bot.tree.sync(guild=guild)
-        print(f'Synced {len(synced)} commands to guild {guild.id}')
+        for guild in guilds:
+            synced = await bot.tree.sync(guild=guild)
+            print(f"Synced {len(synced)} commands to guild {guild.id}")
     except Exception as e:
-        print(f'Error syncing commands: {e}')
+        print(f"Error syncing commands: {e}")
 
     print("Bot started successfully.")
 
-GUILD_ID = discord.Object(id=1170796078598193295)
+@bot.tree.command(name="message", description="Forwards last sent message to given list of people", guilds=guilds)
+async def send_message(interaction: discord.Interaction, subject: str, send_email: bool=True, send_text: bool=True):
+    options = {
+        "subject": subject,
+        "send_email": send_email,
+        "send_text": send_text
+    }
 
-@bot.tree.command(name="message", description="Forwards last sent message to given list of people", guild=GUILD_ID)
-async def send_message(interaction: discord.Interaction):
     channel = bot.get_channel(interaction.channel_id)
 
     # Last message is not guaranteed to be valid, so we run a few checks
@@ -37,10 +58,13 @@ async def send_message(interaction: discord.Interaction):
         webhook = interaction.followup
         await interaction.response.send_message("Message is being sent...", ephemeral=True)
         try:
-            await deploy_message(bot, last_message)
+            log = await deploy_message(bot, last_message, options)
         except Exception as e:
             await webhook.send(f"The following error was met while running. \n{e}")
-        await webhook.send("Message sent successfully", ephemeral=True)
+            raise e
+        if log == "":
+            await webhook.send("Message sent successfully.", ephemeral=True)
+        else: await webhook.send("Message sent successfully.\n\nLog:\n" + log, ephemeral=True)
 
 
 with open("data/bot-token") as file:
